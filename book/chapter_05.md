@@ -5,6 +5,8 @@
 * Tests in rust are declared with the attribute macro `#[test]`. Most code editors can compile and run the functions declared under the macro individually or blocks of them.
 * Test can have special compilation flags with `#[cfg(test)]`. Also executable in code editors if it contained `#[test]`, it is a good way to mock complicated functions or override traits.
 
+> Remember that test are use to verify the code, but are also easily debuggable. It must be easy to understand where a problem is when a test fails.
+
 ## 5.1 Testing tools
 
 ### Cargo plugins
@@ -195,6 +197,7 @@ This makes it easier to understand why a test is failing.
 ```rust
 fn test_thing_parser(...) {
   Thing::parse("abcd").expect("Failed to parse \"abcd\" into Thing");
+  Thing::parse("ab").expect("Failed to parse \"ab\" into Thing");
   Thing::parse("ABCD").expect_err("Succeeded to parse \"ABCD\" into Thing");
 }
 ```
@@ -203,9 +206,11 @@ fn test_thing_parser(...) {
 ```rust
 #[cfg(test)]
 mod test_thing_parser {
-  #[test]
-  fn lowercase_letters_are_valid() {
-    Thing::parse("abcd").expect("Failed to parse \"abcd\" into Thing"),
+  #[rstest::rstest]
+  #[case::ab("ab")]
+  #[case::abcd("abcd")]
+  fn lowercase_letters_are_valid(#[case] string_to_parse: &str) {
+    Thing::parse(string_to_parse).unwrap_or_else(|| panic!("Failed to parse \"{string_to_parse}\" into Thing"),
   }
 
   #[test]
@@ -215,7 +220,15 @@ mod test_thing_parser {
 }
 ```
 
-> `Ok` scenarios should have an `eprintln` of the `Err` case.
+If you are testing separate behaviors, make multiple tests each with descriptive names.
+To avoid boilerplate, either use a shared setup function or [rstest](https://crates.io/crates/rstest) cases *with descriptive test names*:
+
+> Considerations when using `rstest`
+>
+> * It’s harder for both IDEs and humans to run/locate specific tests.
+> * Expectation vs condition naming is now visually inverted (expectation first).
+
+> ❗ Share **setup**, not the test itself: keep each test's action and assertion inline, even when repetitive. Tests tolerate duplication better than production code — see [Chapter 1, §1.8](chapter_01.md#-test-code-readability-beats-dry).
 
 ### Use very few, ideally one, assertion per test
 
@@ -226,34 +239,32 @@ often requires many iterations to fix a broken test, as you work through asserti
 
 ```rust
 #[test]
-fn test_valid_inputs() {
-  the_function("a").expect("Failed to parse \"a\"");
-  the_function("ab").expect("Failed to parse \"ab\"");
-  the_function("ba").expect("Failed to parse \"ba\"");
-  the_function("bab").expect("Failed to parse \"bab\"");
+fn should_create_nominal_user() {
+  // ...
+  assert_eq!(user.name, expected_user.name);
+  assert_eq!(user.surname, expected_user.surname);
+  assert_eq!(user.email, expected_user.email);
+  assert_eq!(user.birthdate, expected_user.birthdate);
 }
 ```
 
-If you are testing separate behaviors, make multiple tests each with descriptive names.
-To avoid boilerplate, either use a shared setup function or [rstest](https://crates.io/crates/rstest) cases *with descriptive test names*:
+✅ Rather check all element at once, to have the maximum of information if the test fails
+
 ```rust
-#[rstest]
-#[case::single("a")]
-#[case::first_letter("ab")]
-#[case::last_letter("ba")]
-#[case::in_the_middle("bab")]
-fn the_function_accepts_all_strings_with_a(#[case] input: &str) {
-  the_function(input)
-    .unwrap_or_else(|err| panic!("Failed to parse {input}: {err}"));
+// Implement PartialEq & Debug for struct User
+
+#[test]
+fn should_create_nominal_user() {
+  // ...
+  assert_eq!(user, expected_user);
+
+  // or if some fields must not be tested (eg. updated_time)
+
+  use std::assert_matches::assert_matches;
+  assert_matches!(User { name, email, })
 }
 ```
 
-> Considerations when using `rstest`
->
-> * It’s harder for both IDEs and humans to run/locate specific tests.
-> * Expectation vs condition naming is now visually inverted (expectation first).
-
-> ❗ Share **setup**, not the test itself: keep each test's action and assertion inline, even when repetitive. Tests tolerate duplication better than production code — see [Chapter 1, §1.8](chapter_01.md#-test-code-readability-beats-dry).
 
 ## 5.3 Add Test Examples to your Docs
 

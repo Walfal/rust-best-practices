@@ -26,3 +26,25 @@ fn main() {
     println!("CHild 1: {child_1:?}");
     println!("CHild 2: {child_2:?}");
 }
+
+#[derive(Debug, PartialEq, Clone)]
+struct User<'a> {
+    name: &'a str,
+    email: &'a str,
+    updated_at: u32,
+}
+
+#[test]
+fn should_create_nominal_user() {
+    // ...
+    // assert_eq!(user, expected_user);
+
+    // or if some fields must not be tested (eg. updated_time)
+    let user = User {
+        name: "doe",
+        email: "john@doe.com",
+        updated_at: 1,
+    };
+
+    std::assert_matches!(user, User { name, email, .. } if name == "doe" && email == "john@doe.com");
+}
